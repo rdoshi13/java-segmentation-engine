@@ -1,0 +1,4 @@
+MODE=evaluate
+high_value=[1, 4]
+spend_or_recent=[2, 4]
+young_active=[2, 4]

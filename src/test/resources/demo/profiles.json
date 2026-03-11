@@ -1,0 +1,6 @@
+[
+  { "id": 1, "age": 26, "totalSpent": 1500, "lastLoginDays": 20 },
+  { "id": 2, "age": 22, "totalSpent": 3000, "lastLoginDays": 2 },
+  { "id": 3, "age": 40, "totalSpent": 800, "lastLoginDays": 50 },
+  { "id": 4, "age": 29, "totalSpent": 1200, "lastLoginDays": 3 }
+]

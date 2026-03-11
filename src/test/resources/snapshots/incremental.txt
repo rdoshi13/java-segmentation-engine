@@ -1,0 +1,12 @@
+MODE=incremental
+UPDATE profileId=1 field=last_login_days impacted=[high_value, spend_or_recent, young_active]
+DELTA high_value true->true
+DELTA spend_or_recent false->true
+DELTA young_active false->true
+UPDATE profileId=4 field=total_spent impacted=[high_value, spend_or_recent]
+DELTA high_value true->false
+DELTA spend_or_recent true->true
+FINAL_MEMBERSHIP
+high_value=[1]
+spend_or_recent=[1, 2, 4]
+young_active=[1, 2, 4]

@@ -1,0 +1,10 @@
+MODE=parse
+SEGMENT high_value
+ORIGINAL ((age > 25 AND total_spent >= 1000) AND last_login_days < 30)
+OPTIMIZED ((age > 25 AND last_login_days < 30) AND total_spent >= 1000)
+SEGMENT young_active
+ORIGINAL (age <= 30 AND last_login_days < 10)
+OPTIMIZED (last_login_days < 10 AND age <= 30)
+SEGMENT spend_or_recent
+ORIGINAL (total_spent > 2000 OR last_login_days < 5)
+OPTIMIZED (total_spent > 2000 OR last_login_days < 5)

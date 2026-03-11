@@ -1,0 +1,4 @@
+[
+  { "profileId": 1, "fieldName": "last_login_days", "newValue": 2 },
+  { "profileId": 4, "fieldName": "total_spent", "newValue": 500 }
+]
