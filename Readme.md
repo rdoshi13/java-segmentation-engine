@@ -116,6 +116,30 @@ Run benchmark mode with preset and report export:
 mvn -q exec:java -Dexec.mainClass=com.segmentengine.cli.DemoCli -Dexec.args="demo --mode benchmark --preset 100k --seed 42 --output benchmark-report.csv"
 ```
 
+Run HTTP API server:
+
+```bash
+mvn -q exec:java -Dexec.mainClass=com.segmentengine.api.ApiServer -Dexec.args="--port 8080"
+```
+
+Example API call:
+
+```bash
+curl -sS http://localhost:8080/evaluate \
+  -H "content-type: application/json" \
+  -d @- <<'JSON'
+{
+  "segments": [
+    {"name":"high_value","rule":"age > 25 AND total_spent >= 1000 AND last_login_days < 30"}
+  ],
+  "profiles": [
+    {"id":1,"age":26,"totalSpent":1500,"lastLoginDays":20},
+    {"id":2,"age":22,"totalSpent":3000,"lastLoginDays":2}
+  ]
+}
+JSON
+```
+
 ## CLI Contract
 
 ```txt
@@ -132,6 +156,14 @@ Additional benchmark flags:
 - `--segment-count`
 - `--output` (path ending in `.csv` or `.json`)
 - `--format` (`csv` or `json`, optional if extension is present)
+
+## API Endpoints
+
+- `GET /health`
+- `POST /parse`
+- `POST /evaluate`
+- `POST /incremental`
+- `POST /benchmark`
 
 ## Implementation Prompt
 

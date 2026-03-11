@@ -19,7 +19,7 @@ class ArchitectureBoundariesTest {
                         "com.segmentengine.metrics.."
                 )
                 .should().dependOnClassesThat()
-                .resideInAnyPackage("com.segmentengine.cli..", "com.segmentengine.benchmark..");
+                .resideInAnyPackage("com.segmentengine.cli..", "com.segmentengine.benchmark..", "com.segmentengine.api..");
 
         rule.check(new ClassFileImporter().importPackages("com.segmentengine"));
     }
