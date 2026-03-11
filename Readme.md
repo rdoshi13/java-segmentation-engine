@@ -78,6 +78,14 @@ Run tests:
 mvn test
 ```
 
+Short wrapper script:
+
+```bash
+./scripts.sh --mode evaluate --segments src/test/resources/demo/segments.json --profiles src/test/resources/demo/profiles.json
+```
+
+On first run, the script builds classes and copies runtime dependencies automatically.
+
 Run parse mode:
 
 ```bash
