@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ParserTest {
     private final Parser parser = new Parser();
@@ -24,6 +25,8 @@ class ParserTest {
 
     @Test
     void failsOnInvalidSyntax() {
-        assertThrows(ParseException.class, () -> parser.parseExpression("age >"));
+        ParseException exception = assertThrows(ParseException.class, () -> parser.parseExpression("age >"));
+        assertTrue(exception.getMessage().contains("position"));
+        assertTrue(exception.getMessage().contains("<EOF>"));
     }
 }

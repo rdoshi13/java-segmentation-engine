@@ -13,11 +13,13 @@ import java.util.List;
 
 public class Parser {
     private final Tokenizer tokenizer = new Tokenizer();
+    private String source;
     private List<Token> tokens;
     private int index;
 
     public Expression parseExpression(String input) {
         String normalized = normalizeSegmentSyntax(input);
+        this.source = normalized;
         this.tokens = tokenizer.tokenize(normalized);
         this.index = 0;
         Expression expression = parseOrExpression();
@@ -93,7 +95,12 @@ public class Parser {
     private Token expect(TokenType type, String message) {
         Token token = peek();
         if (token.type() != type) {
-            throw new ParseException(message + " at position " + token.position());
+            String found = token.type() == TokenType.EOF ? "<EOF>" : token.text();
+            throw new ParseException(
+                    message + " at position " + token.position()
+                            + ", found '" + found + "' (" + token.type() + ")"
+                            + " in expression: " + source
+            );
         }
         index++;
         return token;

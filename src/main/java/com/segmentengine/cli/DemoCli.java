@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.segmentengine.benchmark.BenchmarkHarness;
 import com.segmentengine.dsl.AstPrettyPrinter;
+import com.segmentengine.dsl.ParseException;
 import com.segmentengine.engine.CompiledSegment;
 import com.segmentengine.engine.FieldAccessorRegistry;
 import com.segmentengine.engine.SegmentCompiler;
@@ -71,6 +72,15 @@ public class DemoCli {
                     yield 2;
                 }
             };
+        } catch (ParseException ex) {
+            err.accept("Parse error: " + ex.getMessage());
+            return 3;
+        } catch (IllegalArgumentException ex) {
+            err.accept("Validation error: " + ex.getMessage());
+            return 3;
+        } catch (IOException ex) {
+            err.accept("I/O error: " + ex.getMessage());
+            return 3;
         } catch (Exception ex) {
             err.accept("Execution failed: " + ex.getMessage());
             return 3;
@@ -92,6 +102,7 @@ public class DemoCli {
         }
 
         List<SegmentDefinition> segments = readSegments(Path.of(segmentsPath));
+        CliInputValidator.validateSegments(segments);
         List<CompiledSegment> compiled = compiler.compile(segments, optimize);
 
         out.accept("MODE=parse");
@@ -122,6 +133,8 @@ public class DemoCli {
 
         List<SegmentDefinition> segments = readSegments(Path.of(segmentsPath));
         List<Profile> profiles = readProfiles(Path.of(profilesPath));
+        CliInputValidator.validateSegments(segments);
+        CliInputValidator.validateProfiles(profiles);
         List<CompiledSegment> compiled = compiler.compile(segments, optimize);
         Map<String, Set<Long>> membership = segmentEngine.evaluateAllSegments(compiled, profiles);
 
@@ -152,6 +165,9 @@ public class DemoCli {
         List<SegmentDefinition> segments = readSegments(Path.of(segmentsPath));
         List<Profile> profiles = readProfiles(Path.of(profilesPath));
         List<ProfileUpdate> updates = readUpdates(Path.of(updatesPath));
+        CliInputValidator.validateSegments(segments);
+        CliInputValidator.validateProfiles(profiles);
+        CliInputValidator.validateUpdates(updates);
 
         List<CompiledSegment> compiled = compiler.compile(segments, optimize);
         Map<String, Set<Long>> membership = segmentEngine.evaluateAllSegments(compiled, profiles);
