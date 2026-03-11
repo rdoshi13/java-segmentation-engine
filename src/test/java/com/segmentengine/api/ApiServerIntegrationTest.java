@@ -131,6 +131,20 @@ class ApiServerIntegrationTest {
         assertEquals("evaluate", json.get("mode").asText());
     }
 
+    @Test
+    void returnsValidationErrorForUnsupportedRuleField() throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("segments", List.of(Map.of("name", "bad_field", "rule", "age > 20 AND country > 1")));
+        payload.put("profiles", loadJsonList("demo/profiles.json"));
+
+        HttpResponse<String> response = postJson("/v1/evaluate", payload, "application/json");
+        assertEquals(400, response.statusCode());
+
+        JsonNode json = MAPPER.readTree(response.body());
+        assertEquals("validation_error", json.get("code").asText());
+        assertTrue(json.get("message").asText().contains("unsupported fields"));
+    }
+
     private HttpResponse<String> postJson(String path, Object payload, String contentType) throws Exception {
         String body = MAPPER.writeValueAsString(payload);
         HttpRequest request = HttpRequest.newBuilder()

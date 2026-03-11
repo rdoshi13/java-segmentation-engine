@@ -44,6 +44,8 @@ Java model fields will use `camelCase`:
 - `totalSpent`
 - `lastLoginDays`
 
+Rules referencing unsupported DSL fields are rejected at compile time with validation errors.
+
 ## Architecture
 
 ```txt

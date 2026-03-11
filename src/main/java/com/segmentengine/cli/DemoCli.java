@@ -60,7 +60,7 @@ public class DemoCli {
         long seed = options.containsKey("seed") ? Long.parseLong(options.get("seed")) : 42L;
 
         AstOptimizer optimizer = OptimizerFactory.defaultOptimizer();
-        SegmentCompiler compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer);
+        SegmentCompiler compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer, new FieldAccessorRegistry());
         SegmentEngine segmentEngine = new SegmentEngine(new FieldAccessorRegistry());
         AstPrettyPrinter printer = new AstPrettyPrinter();
 

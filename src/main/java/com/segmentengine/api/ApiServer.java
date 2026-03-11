@@ -58,7 +58,7 @@ public class ApiServer {
     public ApiServer(int port) throws IOException {
         this.optimizer = OptimizerFactory.defaultOptimizer();
         this.prettyPrinter = new AstPrettyPrinter();
-        this.compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer);
+        this.compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer, new FieldAccessorRegistry());
         this.segmentEngine = new SegmentEngine(new FieldAccessorRegistry());
         this.server = HttpServer.create(new InetSocketAddress(port), 0);
         configureRoutes();

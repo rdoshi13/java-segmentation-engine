@@ -30,7 +30,7 @@ class IncrementalSegmentEngineTest {
                 new Profile(2, 22, 3000, 2)
         ));
 
-        SegmentCompiler compiler = new SegmentCompiler(new Parser(), OptimizerFactory.defaultOptimizer());
+        SegmentCompiler compiler = new SegmentCompiler(new Parser(), OptimizerFactory.defaultOptimizer(), new FieldAccessorRegistry());
         SegmentEngine engine = new SegmentEngine(new FieldAccessorRegistry());
         List<CompiledSegment> compiled = compiler.compile(segments, false);
 

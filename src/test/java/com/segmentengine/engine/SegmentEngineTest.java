@@ -26,7 +26,7 @@ class SegmentEngineTest {
                 new Profile(4, 29, 1200, 3)
         );
 
-        SegmentCompiler compiler = new SegmentCompiler(new Parser(), OptimizerFactory.defaultOptimizer());
+        SegmentCompiler compiler = new SegmentCompiler(new Parser(), OptimizerFactory.defaultOptimizer(), new FieldAccessorRegistry());
         SegmentEngine engine = new SegmentEngine(new FieldAccessorRegistry());
 
         Map<String, Set<Long>> membership = engine.evaluateAllSegments(compiler.compile(segments, false), profiles);

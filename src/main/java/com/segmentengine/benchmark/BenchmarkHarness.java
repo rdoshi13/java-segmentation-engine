@@ -86,7 +86,7 @@ public class BenchmarkHarness {
     public static BenchmarkHarness defaultHarness(com.segmentengine.optimizer.AstOptimizer optimizer) {
         FieldAccessorRegistry registry = new FieldAccessorRegistry();
         SegmentEngine engine = new SegmentEngine(registry);
-        SegmentCompiler compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer);
+        SegmentCompiler compiler = new SegmentCompiler(new com.segmentengine.dsl.Parser(), optimizer, registry);
         return new BenchmarkHarness(compiler, engine);
     }
 }
