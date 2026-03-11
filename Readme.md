@@ -66,6 +66,7 @@ src/main/java/com/segmentengine/
   incremental/
   model/
   cli/
+  api/
   benchmark/
   metrics/
 ```
@@ -125,7 +126,7 @@ mvn -q exec:java -Dexec.mainClass=com.segmentengine.api.ApiServer -Dexec.args="-
 Example API call:
 
 ```bash
-curl -sS http://localhost:8080/evaluate \
+curl -sS http://localhost:8080/v1/evaluate \
   -H "content-type: application/json" \
   -d @- <<'JSON'
 {
@@ -159,11 +160,23 @@ Additional benchmark flags:
 
 ## API Endpoints
 
+- `GET /v1/health`
+- `POST /v1/parse`
+- `POST /v1/evaluate`
+- `POST /v1/incremental`
+- `POST /v1/benchmark`
+
+Compatibility aliases (non-versioned routes) remain available:
+
 - `GET /health`
 - `POST /parse`
 - `POST /evaluate`
 - `POST /incremental`
 - `POST /benchmark`
+
+OpenAPI specification:
+
+- [openapi.yaml](/Users/maruti/Documents/Projects/java-segmentation-engine/openapi.yaml)
 
 ## Implementation Prompt
 

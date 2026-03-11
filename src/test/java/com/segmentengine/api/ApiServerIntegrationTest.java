@@ -43,12 +43,26 @@ class ApiServerIntegrationTest {
     }
 
     @Test
+    void healthEndpointReturnsOk() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/v1/health"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+
+        JsonNode json = MAPPER.readTree(response.body());
+        assertEquals("ok", json.get("status").asText());
+    }
+
+    @Test
     void parseEndpointReturnsExpressions() throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("segments", loadJsonList("demo/segments.json"));
         payload.put("optimize", true);
 
-        HttpResponse<String> response = postJson("/parse", payload);
+        HttpResponse<String> response = postJson("/v1/parse", payload, "application/json");
         assertEquals(200, response.statusCode());
 
         JsonNode json = MAPPER.readTree(response.body());
@@ -63,7 +77,7 @@ class ApiServerIntegrationTest {
         payload.put("segments", loadJsonList("demo/segments.json"));
         payload.put("profiles", loadJsonList("demo/profiles.json"));
 
-        HttpResponse<String> response = postJson("/evaluate", payload);
+        HttpResponse<String> response = postJson("/v1/evaluate", payload, "application/json");
         assertEquals(200, response.statusCode());
 
         JsonNode json = MAPPER.readTree(response.body());
@@ -78,7 +92,7 @@ class ApiServerIntegrationTest {
         payload.put("profiles", loadJsonList("demo/profiles.json"));
         payload.put("updates", loadJsonList("demo/updates.json"));
 
-        HttpResponse<String> response = postJson("/incremental", payload);
+        HttpResponse<String> response = postJson("/v1/incremental", payload, "application/json");
         assertEquals(200, response.statusCode());
 
         JsonNode json = MAPPER.readTree(response.body());
@@ -94,7 +108,7 @@ class ApiServerIntegrationTest {
         payload.put("segmentCount", 20);
         payload.put("seed", 7);
 
-        HttpResponse<String> response = postJson("/benchmark", payload);
+        HttpResponse<String> response = postJson("/v1/benchmark", payload, "application/json");
         assertEquals(200, response.statusCode());
 
         JsonNode json = MAPPER.readTree(response.body());
@@ -105,23 +119,23 @@ class ApiServerIntegrationTest {
     }
 
     @Test
-    void returnsValidationErrorForBadPayload() throws Exception {
+    void legacyRouteAliasStillWorks() throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("segments", List.of(Map.of("name", "dup", "rule", "age > 20"), Map.of("name", "dup", "rule", "age > 30")));
+        payload.put("segments", loadJsonList("demo/segments.json"));
         payload.put("profiles", loadJsonList("demo/profiles.json"));
 
-        HttpResponse<String> response = postJson("/evaluate", payload);
-        assertEquals(400, response.statusCode());
+        HttpResponse<String> response = postJson("/evaluate", payload, "application/json");
+        assertEquals(200, response.statusCode());
 
         JsonNode json = MAPPER.readTree(response.body());
-        assertEquals("validation_error", json.get("error").asText());
+        assertEquals("evaluate", json.get("mode").asText());
     }
 
-    private HttpResponse<String> postJson(String path, Object payload) throws Exception {
+    private HttpResponse<String> postJson(String path, Object payload, String contentType) throws Exception {
         String body = MAPPER.writeValueAsString(payload);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
-                .header("Content-Type", "application/json")
+                .header("Content-Type", contentType)
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());

@@ -23,3 +23,57 @@ jobs:
 
       - name: Run tests
         run: mvn --batch-mode --no-transfer-progress test
+
+  api-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build app for smoke test
+        run: mvn --batch-mode --no-transfer-progress -DskipTests package dependency:copy-dependencies
+
+      - name: API smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -cp "target/classes:target/dependency/*" com.segmentengine.api.ApiServer --port 18080 > /tmp/api.log 2>&1 &
+          SERVER_PID=$!
+          trap "kill ${SERVER_PID}" EXIT
+
+          for i in {1..30}; do
+            if curl -fsS http://localhost:18080/v1/health > /tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          grep -q '"status":"ok"' /tmp/health.json
+
+          cat > /tmp/evaluate.json <<'JSON'
+          {
+            "segments": [
+              {"name":"high_value","rule":"age > 25 AND total_spent >= 1000 AND last_login_days < 30"}
+            ],
+            "profiles": [
+              {"id":1,"age":26,"totalSpent":1500,"lastLoginDays":20},
+              {"id":2,"age":22,"totalSpent":3000,"lastLoginDays":2}
+            ]
+          }
+          JSON
+
+          curl -fsS http://localhost:18080/v1/evaluate \
+            -H "content-type: application/json" \
+            --data @/tmp/evaluate.json > /tmp/evaluate-response.json
+
+          grep -q '"mode":"evaluate"' /tmp/evaluate-response.json
+          grep -q '"high_value":\[1\]' /tmp/evaluate-response.json

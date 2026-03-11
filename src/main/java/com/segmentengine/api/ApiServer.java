@@ -1,6 +1,19 @@
 package com.segmentengine.api;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.segmentengine.api.dto.ApiErrorResponse;
+import com.segmentengine.api.dto.BenchmarkRequest;
+import com.segmentengine.api.dto.BenchmarkResponse;
+import com.segmentengine.api.dto.EvaluateRequest;
+import com.segmentengine.api.dto.EvaluateResponse;
+import com.segmentengine.api.dto.HealthResponse;
+import com.segmentengine.api.dto.IncrementalRequest;
+import com.segmentengine.api.dto.IncrementalResponse;
+import com.segmentengine.api.dto.IncrementalUpdateResponse;
+import com.segmentengine.api.dto.ParseRequest;
+import com.segmentengine.api.dto.ParseResponse;
+import com.segmentengine.api.dto.ParseSegmentResponse;
 import com.segmentengine.benchmark.BenchmarkHarness;
 import com.segmentengine.benchmark.BenchmarkPreset;
 import com.segmentengine.dsl.AstPrettyPrinter;
@@ -15,7 +28,6 @@ import com.segmentengine.incremental.SegmentDependencyIndex;
 import com.segmentengine.metrics.BenchmarkResult;
 import com.segmentengine.model.Profile;
 import com.segmentengine.model.ProfileUpdate;
-import com.segmentengine.model.SegmentDefinition;
 import com.segmentengine.optimizer.AstOptimizer;
 import com.segmentengine.optimizer.OptimizerFactory;
 import com.sun.net.httpserver.HttpExchange;
@@ -24,11 +36,11 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -72,146 +84,201 @@ public class ApiServer {
     }
 
     private void configureRoutes() {
-        server.createContext("/health", exchange -> {
+        registerHealthRoute("/v1/health");
+        registerHealthRoute("/health");
+
+        registerJsonRoute("/v1/parse", this::handleParse);
+        registerJsonRoute("/v1/evaluate", this::handleEvaluate);
+        registerJsonRoute("/v1/incremental", this::handleIncremental);
+        registerJsonRoute("/v1/benchmark", this::handleBenchmark);
+
+        // Compatibility aliases.
+        registerJsonRoute("/parse", this::handleParse);
+        registerJsonRoute("/evaluate", this::handleEvaluate);
+        registerJsonRoute("/incremental", this::handleIncremental);
+        registerJsonRoute("/benchmark", this::handleBenchmark);
+
+        server.createContext("/", this::handleNotFound);
+    }
+
+    private void registerHealthRoute(String path) {
+        server.createContext(path, exchange -> {
             try {
                 if (!"GET".equals(exchange.getRequestMethod())) {
-                    writeError(exchange, 405, "method_not_allowed", "Only GET is allowed for /health.");
+                    writeError(
+                            exchange,
+                            405,
+                            "method_not_allowed",
+                            "Only GET is allowed for this endpoint.",
+                            Map.of("path", path, "allowed", List.of("GET"))
+                    );
                     return;
                 }
-                writeJson(exchange, 200, Map.of("status", "ok"));
+                writeJson(exchange, 200, new HealthResponse("ok"));
             } finally {
                 exchange.close();
             }
         });
-
-        server.createContext("/parse", exchange -> handleJsonPost(exchange, this::handleParse));
-        server.createContext("/evaluate", exchange -> handleJsonPost(exchange, this::handleEvaluate));
-        server.createContext("/incremental", exchange -> handleJsonPost(exchange, this::handleIncremental));
-        server.createContext("/benchmark", exchange -> handleJsonPost(exchange, this::handleBenchmark));
     }
 
-    private Object handleParse(byte[] requestBody) throws Exception {
-        ParseRequest request = readRequest(requestBody, ParseRequest.class);
-        boolean optimize = request.optimize != null && request.optimize;
-        ApiInputValidator.validateSegments(request.segments);
+    private void registerJsonRoute(String path, Endpoint endpoint) {
+        server.createContext(path, exchange -> handleJsonPost(exchange, endpoint, path));
+    }
 
-        List<CompiledSegment> compiledSegments = compiler.compile(request.segments, optimize);
-        List<Map<String, Object>> segments = new ArrayList<>();
+    private ParseResponse handleParse(byte[] requestBody) throws Exception {
+        ParseRequest request = readRequest(requestBody, ParseRequest.class);
+        boolean optimize = Boolean.TRUE.equals(request.optimize());
+        ApiInputValidator.validateSegments(request.segments());
+
+        List<CompiledSegment> compiledSegments = compiler.compile(request.segments(), optimize);
+        List<ParseSegmentResponse> segments = new ArrayList<>();
         for (CompiledSegment compiledSegment : compiledSegments) {
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("name", compiledSegment.name());
-            entry.put("original", compiledSegment.originalExpression().accept(prettyPrinter));
-            if (optimize) {
-                entry.put("optimized", compiledSegment.executableExpression().accept(prettyPrinter));
-            }
-            segments.add(entry);
+            segments.add(new ParseSegmentResponse(
+                    compiledSegment.name(),
+                    compiledSegment.originalExpression().accept(prettyPrinter),
+                    optimize ? compiledSegment.executableExpression().accept(prettyPrinter) : null
+            ));
         }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("mode", "parse");
-        response.put("optimize", optimize);
-        response.put("segments", segments);
-        return response;
+        return new ParseResponse("parse", optimize, segments);
     }
 
-    private Object handleEvaluate(byte[] requestBody) throws Exception {
+    private EvaluateResponse handleEvaluate(byte[] requestBody) throws Exception {
         EvaluateRequest request = readRequest(requestBody, EvaluateRequest.class);
-        boolean optimize = request.optimize != null && request.optimize;
+        boolean optimize = Boolean.TRUE.equals(request.optimize());
 
-        ApiInputValidator.validateSegments(request.segments);
-        ApiInputValidator.validateProfiles(request.profiles);
+        ApiInputValidator.validateSegments(request.segments());
+        ApiInputValidator.validateProfiles(request.profiles());
 
-        List<CompiledSegment> compiledSegments = compiler.compile(request.segments, optimize);
-        Map<String, Set<Long>> membership = segmentEngine.evaluateAllSegments(compiledSegments, request.profiles);
+        List<CompiledSegment> compiledSegments = compiler.compile(request.segments(), optimize);
+        Map<String, Set<Long>> membership = segmentEngine.evaluateAllSegments(compiledSegments, request.profiles());
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("mode", "evaluate");
-        response.put("optimize", optimize);
-        response.put("membership", toSerializableMembership(membership));
-        return response;
+        return new EvaluateResponse("evaluate", optimize, toSerializableMembership(membership));
     }
 
-    private Object handleIncremental(byte[] requestBody) throws Exception {
+    private IncrementalResponse handleIncremental(byte[] requestBody) throws Exception {
         IncrementalRequest request = readRequest(requestBody, IncrementalRequest.class);
-        boolean optimize = request.optimize != null && request.optimize;
+        boolean optimize = Boolean.TRUE.equals(request.optimize());
 
-        ApiInputValidator.validateSegments(request.segments);
-        ApiInputValidator.validateProfiles(request.profiles);
-        ApiInputValidator.validateUpdates(request.updates);
+        ApiInputValidator.validateSegments(request.segments());
+        ApiInputValidator.validateProfiles(request.profiles());
+        ApiInputValidator.validateUpdates(request.updates());
 
-        List<Profile> profiles = new ArrayList<>(request.profiles);
-        List<CompiledSegment> compiledSegments = compiler.compile(request.segments, optimize);
+        List<Profile> profiles = new ArrayList<>(request.profiles());
+        List<CompiledSegment> compiledSegments = compiler.compile(request.segments(), optimize);
         Map<String, Set<Long>> membership = segmentEngine.evaluateAllSegments(compiledSegments, profiles);
 
         IncrementalSegmentEngine incrementalSegmentEngine =
                 new IncrementalSegmentEngine(segmentEngine, new SegmentDependencyIndex());
 
-        List<Map<String, Object>> updates = new ArrayList<>();
-        for (ProfileUpdate update : request.updates) {
+        List<IncrementalUpdateResponse> updates = new ArrayList<>();
+        for (ProfileUpdate update : request.updates()) {
             IncrementalUpdateResult updateResult = incrementalSegmentEngine
                     .applyUpdate(compiledSegments, profiles, membership, update);
-            Map<String, Object> updatePayload = new LinkedHashMap<>();
-            updatePayload.put("profileId", update.getProfileId());
-            updatePayload.put("fieldName", update.getFieldName());
-            updatePayload.put("before", sortedBooleanMap(updateResult.getBeforeMatchBySegment()));
-            updatePayload.put("after", sortedBooleanMap(updateResult.getAfterMatchBySegment()));
-            updatePayload.put("impactedSegments", updateResult.getImpactedSegments().stream().sorted().toList());
-            updates.add(updatePayload);
+            updates.add(new IncrementalUpdateResponse(
+                    update.getProfileId(),
+                    update.getFieldName(),
+                    sortedBooleanMap(updateResult.getBeforeMatchBySegment()),
+                    sortedBooleanMap(updateResult.getAfterMatchBySegment()),
+                    updateResult.getImpactedSegments().stream().sorted().toList()
+            ));
         }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("mode", "incremental");
-        response.put("optimize", optimize);
-        response.put("updates", updates);
-        response.put("finalMembership", toSerializableMembership(membership));
-        return response;
+        return new IncrementalResponse("incremental", optimize, updates, toSerializableMembership(membership));
     }
 
-    private Object handleBenchmark(byte[] requestBody) throws Exception {
+    private BenchmarkResponse handleBenchmark(byte[] requestBody) throws Exception {
         BenchmarkRequest request = readRequest(requestBody, BenchmarkRequest.class);
-        boolean optimize = request.optimize != null && request.optimize;
-        long seed = request.seed == null ? 42L : request.seed;
+        boolean optimize = Boolean.TRUE.equals(request.optimize());
+        long seed = request.seed() == null ? 42L : request.seed();
 
-        BenchmarkPreset preset = BenchmarkPreset.fromValue(request.preset == null ? "50k" : request.preset);
-        int profileCount = request.profileCount == null ? preset.profileCount() : positiveInt(request.profileCount, "profileCount");
-        int segmentCount = request.segmentCount == null ? preset.segmentCount() : positiveInt(request.segmentCount, "segmentCount");
+        BenchmarkPreset preset = BenchmarkPreset.fromValue(request.preset() == null ? "50k" : request.preset());
+        int profileCount = request.profileCount() == null ? preset.profileCount() : positiveInt(request.profileCount(), "profileCount");
+        int segmentCount = request.segmentCount() == null ? preset.segmentCount() : positiveInt(request.segmentCount(), "segmentCount");
 
         BenchmarkHarness benchmarkHarness = BenchmarkHarness.defaultHarness(optimizer);
         BenchmarkResult result = benchmarkHarness.run(profileCount, segmentCount, seed, optimize);
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("mode", "benchmark");
-        response.put("preset", preset.label());
-        response.put("optimize", optimize);
-        response.put("seed", seed);
-        response.put("profileCount", result.profileCount());
-        response.put("segmentCount", result.segmentCount());
-        response.put("totalEvaluationMillis", result.totalEvaluationMillis());
-        response.put("profilesPerSecond", result.profilesPerSecond());
-        response.put("predicateEvaluationsPerSecond", result.predicateEvaluationsPerSecond());
-        response.put("avgIncrementalLatencyMicros", result.avgIncrementalLatencyMicros());
-        return response;
+        return new BenchmarkResponse(
+                "benchmark",
+                preset.label(),
+                optimize,
+                seed,
+                result.profileCount(),
+                result.segmentCount(),
+                result.totalEvaluationMillis(),
+                result.profilesPerSecond(),
+                result.predicateEvaluationsPerSecond(),
+                result.avgIncrementalLatencyMicros()
+        );
     }
 
-    private void handleJsonPost(HttpExchange exchange, Endpoint endpoint) throws IOException {
+    private void handleJsonPost(HttpExchange exchange, Endpoint endpoint, String path) throws IOException {
         try {
             if (!"POST".equals(exchange.getRequestMethod())) {
-                writeError(exchange, 405, "method_not_allowed", "Only POST is allowed for this endpoint.");
+                writeError(
+                        exchange,
+                        405,
+                        "method_not_allowed",
+                        "Only POST is allowed for this endpoint.",
+                        Map.of("path", path, "allowed", List.of("POST"))
+                );
+                return;
+            }
+
+            if (!isJsonRequest(exchange)) {
+                writeError(
+                        exchange,
+                        415,
+                        "unsupported_media_type",
+                        "Content-Type must be application/json.",
+                        Map.of("path", path)
+                );
                 return;
             }
 
             byte[] requestBody = exchange.getRequestBody().readAllBytes();
             Object response = endpoint.handle(requestBody);
             writeJson(exchange, 200, response);
+        } catch (JsonProcessingException ex) {
+            writeError(exchange, 400, "invalid_json", "Malformed JSON request body.", Map.of("detail", ex.getOriginalMessage()));
         } catch (ParseException ex) {
-            writeError(exchange, 400, "parse_error", ex.getMessage());
+            writeError(exchange, 400, "parse_error", ex.getMessage(), Map.of("path", path));
         } catch (IllegalArgumentException ex) {
-            writeError(exchange, 400, "validation_error", ex.getMessage());
+            writeError(exchange, 400, "validation_error", ex.getMessage(), Map.of("path", path));
         } catch (Exception ex) {
-            writeError(exchange, 500, "internal_error", ex.getMessage());
+            writeError(
+                    exchange,
+                    500,
+                    "internal_error",
+                    "Unhandled server error.",
+                    Map.of("path", path, "exception", ex.getClass().getSimpleName())
+            );
         } finally {
             exchange.close();
         }
+    }
+
+    private void handleNotFound(HttpExchange exchange) throws IOException {
+        try {
+            writeError(
+                    exchange,
+                    404,
+                    "route_not_found",
+                    "Route not found.",
+                    Map.of("path", exchange.getRequestURI().getPath())
+            );
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private boolean isJsonRequest(HttpExchange exchange) {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (contentType == null) {
+            return false;
+        }
+        return contentType.toLowerCase(Locale.ROOT).startsWith("application/json");
     }
 
     private <T> T readRequest(byte[] requestBody, Class<T> type) throws IOException {
@@ -264,40 +331,18 @@ public class ApiServer {
         }
     }
 
-    private static void writeError(HttpExchange exchange, int statusCode, String code, String message) throws IOException {
-        Map<String, String> payload = new LinkedHashMap<>();
-        payload.put("error", code);
-        payload.put("message", message);
+    private static void writeError(
+            HttpExchange exchange,
+            int statusCode,
+            String code,
+            String message,
+            Map<String, Object> details
+    ) throws IOException {
+        ApiErrorResponse payload = new ApiErrorResponse(code, message, details == null ? Map.of() : new LinkedHashMap<>(details));
         writeJson(exchange, statusCode, payload);
     }
 
     private interface Endpoint {
         Object handle(byte[] requestBody) throws Exception;
-    }
-
-    private static final class ParseRequest {
-        public List<SegmentDefinition> segments;
-        public Boolean optimize;
-    }
-
-    private static final class EvaluateRequest {
-        public List<SegmentDefinition> segments;
-        public List<Profile> profiles;
-        public Boolean optimize;
-    }
-
-    private static final class IncrementalRequest {
-        public List<SegmentDefinition> segments;
-        public List<Profile> profiles;
-        public List<ProfileUpdate> updates;
-        public Boolean optimize;
-    }
-
-    private static final class BenchmarkRequest {
-        public String preset;
-        public Integer profileCount;
-        public Integer segmentCount;
-        public Long seed;
-        public Boolean optimize;
     }
 }

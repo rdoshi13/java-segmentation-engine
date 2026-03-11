@@ -1,0 +1,377 @@
+openapi: 3.1.0
+info:
+  title: Segmentation Engine API
+  version: 1.0.0
+  description: |
+    HTTP API for parsing, evaluating, incrementally updating, and benchmarking
+    rule-based customer segments.
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/parse:
+    post:
+      summary: Parse segment rules into normalized expressions
+      operationId: parseSegments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseRequest'
+      responses:
+        '200':
+          description: Parse result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParseResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '405':
+          $ref: '#/components/responses/Error405'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /v1/evaluate:
+    post:
+      summary: Evaluate segment membership across profiles
+      operationId: evaluateSegments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateRequest'
+      responses:
+        '200':
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluateResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '405':
+          $ref: '#/components/responses/Error405'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /v1/incremental:
+    post:
+      summary: Apply profile updates and recalculate impacted memberships
+      operationId: applyIncrementalUpdates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncrementalRequest'
+      responses:
+        '200':
+          description: Incremental update result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncrementalResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '405':
+          $ref: '#/components/responses/Error405'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /v1/benchmark:
+    post:
+      summary: Run synthetic benchmark
+      operationId: runBenchmark
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BenchmarkRequest'
+      responses:
+        '200':
+          description: Benchmark metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '405':
+          $ref: '#/components/responses/Error405'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '500':
+          $ref: '#/components/responses/Error500'
+components:
+  responses:
+    Error400:
+      description: Invalid request payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+    Error405:
+      description: Method not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+    Error415:
+      description: Unsupported media type
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+    Error500:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+  schemas:
+    SegmentDefinition:
+      type: object
+      required: [name, rule]
+      properties:
+        name:
+          type: string
+        rule:
+          type: string
+    Profile:
+      type: object
+      required: [id, age, totalSpent, lastLoginDays]
+      properties:
+        id:
+          type: integer
+          format: int64
+        age:
+          type: integer
+        totalSpent:
+          type: number
+        lastLoginDays:
+          type: integer
+    ProfileUpdate:
+      type: object
+      required: [profileId, fieldName, newValue]
+      properties:
+        profileId:
+          type: integer
+          format: int64
+        fieldName:
+          type: string
+          enum: [age, total_spent, last_login_days]
+        newValue:
+          type: number
+    ParseRequest:
+      type: object
+      required: [segments]
+      properties:
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentDefinition'
+        optimize:
+          type: boolean
+    ParseSegmentResponse:
+      type: object
+      required: [name, original]
+      properties:
+        name:
+          type: string
+        original:
+          type: string
+        optimized:
+          type: [string, 'null']
+    ParseResponse:
+      type: object
+      required: [mode, optimize, segments]
+      properties:
+        mode:
+          type: string
+          const: parse
+        optimize:
+          type: boolean
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseSegmentResponse'
+    EvaluateRequest:
+      type: object
+      required: [segments, profiles]
+      properties:
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentDefinition'
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Profile'
+        optimize:
+          type: boolean
+    EvaluateResponse:
+      type: object
+      required: [mode, optimize, membership]
+      properties:
+        mode:
+          type: string
+          const: evaluate
+        optimize:
+          type: boolean
+        membership:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+    IncrementalRequest:
+      type: object
+      required: [segments, profiles, updates]
+      properties:
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentDefinition'
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Profile'
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileUpdate'
+        optimize:
+          type: boolean
+    IncrementalUpdateResponse:
+      type: object
+      required: [profileId, fieldName, before, after, impactedSegments]
+      properties:
+        profileId:
+          type: integer
+          format: int64
+        fieldName:
+          type: string
+        before:
+          type: object
+          additionalProperties:
+            type: boolean
+        after:
+          type: object
+          additionalProperties:
+            type: boolean
+        impactedSegments:
+          type: array
+          items:
+            type: string
+    IncrementalResponse:
+      type: object
+      required: [mode, optimize, updates, finalMembership]
+      properties:
+        mode:
+          type: string
+          const: incremental
+        optimize:
+          type: boolean
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncrementalUpdateResponse'
+        finalMembership:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+    BenchmarkRequest:
+      type: object
+      properties:
+        preset:
+          type: string
+          enum: [50k, 100k, 500k]
+        profileCount:
+          type: integer
+          minimum: 1
+        segmentCount:
+          type: integer
+          minimum: 1
+        seed:
+          type: integer
+          format: int64
+        optimize:
+          type: boolean
+    BenchmarkResponse:
+      type: object
+      required:
+        - mode
+        - preset
+        - optimize
+        - seed
+        - profileCount
+        - segmentCount
+        - totalEvaluationMillis
+        - profilesPerSecond
+        - predicateEvaluationsPerSecond
+        - avgIncrementalLatencyMicros
+      properties:
+        mode:
+          type: string
+          const: benchmark
+        preset:
+          type: string
+        optimize:
+          type: boolean
+        seed:
+          type: integer
+          format: int64
+        profileCount:
+          type: integer
+          format: int64
+        segmentCount:
+          type: integer
+          format: int64
+        totalEvaluationMillis:
+          type: integer
+          format: int64
+        profilesPerSecond:
+          type: number
+        predicateEvaluationsPerSecond:
+          type: number
+        avgIncrementalLatencyMicros:
+          type: number
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    ApiErrorResponse:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
