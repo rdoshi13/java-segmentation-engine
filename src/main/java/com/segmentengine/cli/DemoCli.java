@@ -3,6 +3,8 @@ package com.segmentengine.cli;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.segmentengine.benchmark.BenchmarkHarness;
+import com.segmentengine.benchmark.BenchmarkPreset;
+import com.segmentengine.benchmark.BenchmarkReportWriter;
 import com.segmentengine.dsl.AstPrettyPrinter;
 import com.segmentengine.dsl.ParseException;
 import com.segmentengine.engine.CompiledSegment;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -200,20 +203,36 @@ public class DemoCli {
             long seed,
             AstOptimizer optimizer,
             Consumer<String> out
-    ) {
-        int profileCount = options.containsKey("profile-count") ? Integer.parseInt(options.get("profile-count")) : 50_000;
-        int segmentCount = options.containsKey("segment-count") ? Integer.parseInt(options.get("segment-count")) : 100;
+    ) throws IOException {
+        String presetValue = options.getOrDefault("preset", "50k");
+        BenchmarkPreset preset = BenchmarkPreset.fromValue(presetValue);
+        int profileCount = options.containsKey("profile-count")
+                ? parsePositiveInt(options.get("profile-count"), "--profile-count")
+                : preset.profileCount();
+        int segmentCount = options.containsKey("segment-count")
+                ? parsePositiveInt(options.get("segment-count"), "--segment-count")
+                : preset.segmentCount();
 
         BenchmarkHarness harness = BenchmarkHarness.defaultHarness(optimizer);
         BenchmarkResult result = harness.run(profileCount, segmentCount, seed, optimize);
 
         out.accept("MODE=benchmark");
+        out.accept("preset=" + preset.label());
         out.accept("profiles=" + result.profileCount());
         out.accept("segments=" + result.segmentCount());
         out.accept("total_eval_ms=" + result.totalEvaluationMillis());
         out.accept("profiles_per_sec=" + String.format("%.2f", result.profilesPerSecond()));
         out.accept("predicate_evals_per_sec=" + String.format("%.2f", result.predicateEvaluationsPerSecond()));
         out.accept("avg_incremental_latency_micros=" + String.format("%.2f", result.avgIncrementalLatencyMicros()));
+
+        if (options.containsKey("output")) {
+            String outputPath = options.get("output");
+            String format = resolveReportFormat(options, outputPath);
+            BenchmarkReportWriter writer = new BenchmarkReportWriter();
+            writer.write(Path.of(outputPath), format, result, seed, optimize, preset.label());
+            out.accept("report_format=" + format);
+            out.accept("report_path=" + Path.of(outputPath).toAbsolutePath());
+        }
         return 0;
     }
 
@@ -235,6 +254,43 @@ public class DemoCli {
             options.put(key, args[++i]);
         }
         return options;
+    }
+
+    private static int parsePositiveInt(String raw, String optionName) {
+        int value;
+        try {
+            value = Integer.parseInt(raw);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Expected integer value for " + optionName + ": " + raw);
+        }
+        if (value <= 0) {
+            throw new IllegalArgumentException("Expected positive integer for " + optionName + ": " + raw);
+        }
+        return value;
+    }
+
+    private static String resolveReportFormat(Map<String, String> options, String outputPath) {
+        if (options.containsKey("format")) {
+            return normalizeFormat(options.get("format"));
+        }
+        String lower = outputPath.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".csv")) {
+            return "csv";
+        }
+        if (lower.endsWith(".json")) {
+            return "json";
+        }
+        throw new IllegalArgumentException(
+                "Cannot infer report format from output path. Use --format <csv|json> or .csv/.json extension."
+        );
+    }
+
+    private static String normalizeFormat(String format) {
+        String normalized = format.toLowerCase(Locale.ROOT);
+        if (!normalized.equals("csv") && !normalized.equals("json")) {
+            throw new IllegalArgumentException("Unsupported report format: " + format + ". Use csv or json.");
+        }
+        return normalized;
     }
 
     private static List<SegmentDefinition> readSegments(Path path) throws IOException {

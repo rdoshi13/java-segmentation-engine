@@ -110,16 +110,28 @@ Run benchmark mode:
 mvn -q exec:java -Dexec.mainClass=com.segmentengine.cli.DemoCli -Dexec.args="demo --mode benchmark --profile-count 50000 --segment-count 100 --seed 42"
 ```
 
+Run benchmark mode with preset and report export:
+
+```bash
+mvn -q exec:java -Dexec.mainClass=com.segmentengine.cli.DemoCli -Dexec.args="demo --mode benchmark --preset 100k --seed 42 --output benchmark-report.csv"
+```
+
 ## CLI Contract
 
 ```txt
-demo --mode <parse|evaluate|incremental|benchmark> --segments <path> --profiles <path> [--updates <path>] [--optimize] [--seed <n>]
+demo --mode parse --segments <path> [--optimize]
+demo --mode evaluate --segments <path> --profiles <path> [--optimize]
+demo --mode incremental --segments <path> --profiles <path> --updates <path> [--optimize]
+demo --mode benchmark [--preset <50k|100k|500k>] [--profile-count <n>] [--segment-count <n>] [--seed <n>] [--optimize] [--output <path>] [--format <csv|json>]
 ```
 
 Additional benchmark flags:
 
+- `--preset` (`50k`, `100k`, `500k`)
 - `--profile-count`
 - `--segment-count`
+- `--output` (path ending in `.csv` or `.json`)
+- `--format` (`csv` or `json`, optional if extension is present)
 
 ## Implementation Prompt
 
