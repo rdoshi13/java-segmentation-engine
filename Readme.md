@@ -179,9 +179,3 @@ Compatibility aliases (non-versioned routes) remain available:
 OpenAPI specification:
 
 - [openapi.yaml](/Users/maruti/Documents/Projects/java-segmentation-engine/openapi.yaml)
-
-## Implementation Prompt
-
-The implementation prompt has been moved to:
-
-- [IMPLEMENTATION_PROMPT.md](/Users/maruti/Documents/Projects/java-segmentation-engine/IMPLEMENTATION_PROMPT.md)
